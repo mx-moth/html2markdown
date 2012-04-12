@@ -25,6 +25,7 @@
 	html2markdown.options = {
 		normalizeWhitespace: true,
 		headerOffset: 0,
+		horizontalRule: '* * *'
 	};
 
 	html2markdown.specialChars = /^([*_\[\]\\])/ig;
@@ -212,6 +213,13 @@
 				return types.inlineWrap(node, '`', options);
 			}
 		},
+
+		blockquote: function(node, options) {
+			var output = html2markdown.handleChildren(node, options);
+			return indentLines(output, '> ', true) + '\n\n';
+		},
+
+		hr: function(node, options) { return options.horizontalRule }
 	};
 	html2markdown.handleNode.other = html2markdown.handleChildren;
 
