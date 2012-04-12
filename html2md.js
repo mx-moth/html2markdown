@@ -15,7 +15,7 @@
 	 */
 	var html2markdown = window.H2M = function(node, options) {
 		options = extendObject({}, html2markdown.options, options);
-		return collectOutput(html2markdown.handleNode, [node, options]).join('');
+		return html2markdown.handleNode(node, options);
 	};
 
 	/**
@@ -58,17 +58,25 @@
 	 * Parameters:
 	 *   node - The node in question
 	 *   options - Options to pass to `html2markdown.handleNode`
-	 *   output - The output callback
 	 */
-	html2markdown.handleChildren = function(node, options, output) {
-		html2markdown.handleNodes(nodeListToArray(node.childNodes), options, output);
+	html2markdown.handleChildren = function(node, options) {
+		return html2markdown.handleNodes(nodeListToArray(node.childNodes), options);
 	
 	}
 	
-	html2markdown.handleNodes = function(arr, options, output) {
-		arr.forEach(function(node) {
-			html2markdown.handleNode(node, options, output);
-		});
+	/**
+	 * Function: handleNodes
+	 *
+	 * Call handleNode for each element in the array.
+	 *
+	 * Parameters:
+	 *   arr - An array of HTML elements
+	 *   options - Options to pass to handleNode
+	 */
+	html2markdown.handleNodes = function(arr, options) {
+		return arr.map(function(node) {
+			return html2markdown.handleNode(node, options);
+		}).join('');
 	}
 
 	/**
@@ -80,25 +88,22 @@
 	 * Parameters:
 	 *   node - The HTML node in question
 	 *   options - Options hash. See `html2markdown.options`
-	 *   output - A callback function that is called with the output of this node.
-	 *     This may be called multiple times.
 	 */
-	html2markdown.handleNode = function(node, options, output) {
+	html2markdown.handleNode = function(node, options) {
 		if (node.nodeType === NODE_TYPE_TEXT) {
 			if (options.normalizeWhitespace) {
-				output(html2markdown.normalizeText(node.nodeValue));
+				return html2markdown.normalizeText(node.nodeValue);
 			} else {
-				output(html2markdown.escapeText(node.nodeValue));
+				return html2markdown.escapeText(node.nodeValue);
 			}
-			return;
 		}
 
 		var nodeName = node.nodeName.toLowerCase();
 		var types = html2markdown.handleNode.types;
 		if (nodeName in types) {
-			types[nodeName](node, options, output);
+			return types[nodeName](node, options);
 		} else {
-			html2markdown.handleNode.other(node, options, output);
+			return html2markdown.handleNode.other(node, options);
 		}
 
 	};
@@ -114,100 +119,97 @@
 	 * representations of nodes
 	 */
 	var types = html2markdown.handleNode.types = {
-		a: function(node, options, output) {
-			output('[');
-			html2markdown.handleChildren(node, options, output);
-			output('](');
-			output(html2markdown.normalizeText(node.href));
+		a: function(node, options) {
+			var out = []
+			out.push('[');
+			out.push(html2markdown.handleChildren(node, options));
+			out.push('](');
+			out.push(html2markdown.normalizeText(node.href));
 			if (node.title) {
-				output(' "');
-				output(html2markdown.normalizeText(node.title));
-				output('"');
+				out.push(' "');
+				out.push(html2markdown.normalizeText(node.title));
+				out.push('"');
 			}
-			output(')');
+			out.push(')');
+			return out.join('');
 		},
 
-		heading: function(node, number, options, output) {
+		heading: function(node, number, options) {
+			var out = [];
 			number = number + options.headerOffset;
-			while (number--) output('#');
-			output(' ');
-			html2markdown.handleChildren(node, options, output);
-			output('\n\n');
-		},
-		h1: function(node, options, output) { types.heading(node, 1, options, output); },
-		h2: function(node, options, output) { types.heading(node, 2, options, output); },
-		h3: function(node, options, output) { types.heading(node, 3, options, output); },
-		h4: function(node, options, output) { types.heading(node, 4, options, output); },
-		h5: function(node, options, output) { types.heading(node, 5, options, output); },
-		h6: function(node, options, output) { types.heading(node, 6, options, output); },
 
-		p: function(node, options, output) {
-			html2markdown.handleChildren(node, options, output);
-			output('\n\n');
+			while (number--) out.push('#');
+			out.push(' ');
+			out.push(html2markdown.handleChildren(node, options));
+			out.push('\n\n');
+
+			return out.join('');
+		},
+		h1: function(node, options) { return types.heading(node, 1, options); },
+		h2: function(node, options) { return types.heading(node, 2, options); },
+		h3: function(node, options) { return types.heading(node, 3, options); },
+		h4: function(node, options) { return types.heading(node, 4, options); },
+		h5: function(node, options) { return types.heading(node, 5, options); },
+		h6: function(node, options) { return types.heading(node, 6, options); },
+
+		p: function(node, options) {
+			return html2markdown.handleChildren(node, options) + '\n\n';
 		},
 
-		div: function(node, options, output) {
+		div: function(node, options) {
 			var importantNodes = nodeListToArray(node.childNodes).filter(function(node) {
 				return node.nodeType !== NODE_TYPE_TEXT;
 			});
-			html2markdown.handleNodes(importantNodes, options, output);
+			return html2markdown.handleNodes(importantNodes, options);
 		},
 
-		b: function(node, options, output) {
-			output('**');
-			html2markdown.handleChildren(node, options, output);
-			output('**');
-		},
-		strong: function() { types.b.apply(types, arguments); },
-
-		i: function(node, options, output) {
-			output('*');
-			html2markdown.handleChildren(node, options, output);
-			output('*');
-		},
-		em: function() { types.i.apply(types, arguments); },
-
-		u: function(node, options, output) {
-			output('_');
-			html2markdown.handleChildren(node, options, output);
-			output('_');
+		inlineWrap: function(node, wrap, options) {
+			return wrap + html2markdown.handleChildren(node, options) + wrap;
 		},
 
-		ol: function(node, options, output) {
+		b:      function(node, options) { return types.inlineWrap(node, '**', options); },
+		strong: function(node, options) { return types.b.apply(types, arguments); },
+
+		i:  function(node, options) { return types.inlineWrap(node, '*', options); },
+		em: function(node, options) { return types.i.apply(types, arguments); },
+
+		u: function(node, options) { return types.inlineWrap(node, '_', options); },
+
+		list: function(node, options) {
 			var importantNodes = nodeListToArray(node.childNodes).filter(function(node) {
 				return node.nodeType !== NODE_TYPE_TEXT && node.nodeName.toLowerCase() == 'li';
 			});
-			html2markdown.handleNodes(importantNodes, options, output);
+			return html2markdown.handleNodes(importantNodes, options);
 		},
-		ul: function() { types.ol.apply(types, arguments); },
+		ol: function() { return types.list.apply(types, arguments); },
+		ul: function() { return types.list.apply(types, arguments); },
 
-		li: function(node, options, output) {
-			var text = collectOutput(html2markdown.handleChildren, [node, options]).join('');
+		li: function(node, options) {
+			var text = html2markdown.handleChildren(node, options);
 
 			var type = {
 				'ol': '# ',
 				'ul': '* ',
 			}[node.parentNode.nodeName.toLowerCase()];
 
-			output(type);
-			output(indentLines(text.trim(), '    ', false));
-			output('\n\n');
+			return type + indentLines(text.trim(), '    ', false) + '\n\n';
 		},
 
-		pre: function(node, options, output) {
+		pre: function(node, options) {
 			var oldNW = options.normalizeWhitespace;
 			options.normalizeWhitespace = false;
-			output(indentLines(collectOutput(html2markdown.handleChildren, [node, options]).join('').trim(), '    ', true));
-			output('\n\n');
+
+			output = html2markdown.handleChildren(node, options);
+
 			options.normalizeWhitespace = oldNW;
+
+			return indentLines(output, '    ', true) + '\n\n';
 		},
-		code: function(node, options, output) {
+		code: function(node, options) {
 			if (node.parentNode.nodeName.toLowerCase() === 'pre') {
-				html2markdown.handleChildren(node, options, output);
+				return html2markdown.handleChildren(node, options);
 			} else {
-				output('`');
-				html2markdown.handleChildren(node, options, output);
-				output('`');
+				return types.inlineWrap(node, '`', options);
 			}
 		},
 	};
@@ -216,15 +218,6 @@
 	var nodeListToArray = function(nodeList) {
 		return [].slice.call(nodeList);
 	};
-
-	var collectOutput = function(fn, args) {
-		var output = [];
-		args.push(function(a) {
-			output.push(a);
-		});
-		fn.apply(null, args);
-		return output;
-	}
 
 	var indentLines = function(text, indent, firstLine) {
 		if (arguments.length < 3) firstLine = true;
