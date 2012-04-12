@@ -14,9 +14,7 @@
 	 * The Markdown text representation of the node
 	 */
 	var html2markdown = window.H2M = function(node, options) {
-		console.log(options);
 		options = extendObject({}, html2markdown.options, options);
-		console.log(options);
 		return collectOutput(html2markdown.handleNode, [node, options]).join('');
 	};
 
@@ -240,9 +238,7 @@
 	var extendObject = function() {
 		var args = [].slice.call(arguments, 0);
 		var base = args.shift();
-		console.log(base, args);
 		args.forEach(function(arg) {
-			console.log(arguments);
 			if (arg) for (var x in arg) {
 				base[x] = arg[x];
 			}
